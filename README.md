@@ -6,5 +6,7 @@ BME280からのデータ取得はI2Cを使用し、oLEDモジュール(SSD1309)�
 
 ![images/top.jpg](images/top.jpg)
 
+BME280_server と組み合わせることで、複数センサの値を表示することが出来ます.
+
 # 参照
 [BME280 - スイッチサイエンス](http://trac.switch-science.com/wiki/BME280)

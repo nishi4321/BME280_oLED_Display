@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
 #include "time.h"
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -51,8 +53,16 @@ int16_t dig_H5;
 int8_t  dig_H6;
 
 // WiFi
-const char* ssid       = "SSID";
-const char* password   = "PASSWORD";
+const char* ssid       = "<SSID>";
+const char* password   = "<PASSWORD>";
+
+//
+int count = 0;
+
+//
+double outTemp = 0;
+double outPress = 0;
+double outHum = 0;
 
 void setup()
 {
@@ -92,6 +102,8 @@ void setup()
   writeReg(0xF4, ctrl_meas_reg);
   writeReg(0xF5, config_reg);
   readTrim();                    //
+
+  xTaskCreatePinnedToCore(subProcess, "subProcess", 4096, NULL, 1, NULL, 0); //Core 0でタスク開始
 }
 
 
@@ -135,21 +147,63 @@ void loop()
   display.print(&timeinfo, "%H:%M:%S");
   display.setTextSize(1);
   display.setCursor(0, 24 + offset);
-  display.print("TEMP  : ");
-  display.print(temp_act);
-  display.print("C");
+  display.print("TEMP   PRESS    HUM");
   display.setCursor(0, 32 + offset);
-  display.print("PRESS : ");
+  display.print(temp_act);
+  display.print("  ");
   display.print(press_act);
-  display.print("hPa");
-  display.setCursor(0, 40 + offset);
-  display.print("HUM   : ");
+  display.print("  ");
   display.print(hum_act);
-  display.print("%");
+  display.setCursor(0, 40 + offset);
+  display.print(outTemp);
+  display.print("  ");
+  display.print(outPress);
+  display.print("  ");
+  display.print(outHum);
   display.display();
 
   delay(1000);
+  count++;
+  if (count == 30) {
+    count = 0;
+  }
 }
+
+void subProcess(void * pvParameters) {
+  while (1) {
+    if (count == 0) {
+      HTTPClient http;
+
+      http.begin("http://192.168.1.201/");
+      int httpCode = http.GET();
+
+      String result = "";
+
+      if (httpCode < 0) {
+        result = http.errorToString(httpCode);
+      } else {
+        result = http.getString();
+      }
+
+      http.end();
+
+      const size_t CAPACITY = 500;
+      StaticJsonDocument<CAPACITY> doc;
+
+      // deserialize the object
+      // char json[] = result;
+      deserializeJson(doc, result);
+
+      // extract the data
+      JsonObject object = doc.as<JsonObject>();
+      outTemp = object["temp"];
+      outPress = object["press"];
+      outHum = object["hum"];
+    }
+    delay(1000);
+  }
+}
+
 void readTrim()
 {
   uint8_t data[32], i = 0;
